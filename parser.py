@@ -1,9 +1,7 @@
 from pathlib import Path
-from bs4 import BeautifulSoup
 import pandas as pd
-import re
-import html
-from datetime import datetime
+
+from src.extractor import IMessageExtractor
 
 PROJECT_ROOT = Path(__file__).parent
 INPUT_DIR = PROJECT_ROOT / "input"
@@ -11,60 +9,37 @@ OUTPUT_DIR = PROJECT_ROOT / "output"
 
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-BRIDGET_NUMBER = "5184695163"
-
-messages = []
-def clean_text(text):
-    if text is None:
-        return ""
-
-    text = html.unescape(text)
-    text = text.replace("\xa0", " ")
-    text = re.sub(r"\s+", " ", text)
-
-    return text.strip()
-
-
-def normalize_phone(phone):
-    if phone is None:
-        return ""
-
-    digits = re.sub(r"\D", "", phone)
-
-    if digits.startswith("1"):
-        digits = digits[1:]
-
-    return digits
-def get_html_files():
-    files = sorted(INPUT_DIR.glob("*.html"))
-
-    print(f"\nFound {len(files)} HTML files.\n")
-
-    for f in files:
-        print(" •", f.name)
-
-    return files
-def load_html(file_path):
-    with open(file_path, "r", encoding="utf-8") as f:
-        return BeautifulSoup(f.read(), "lxml")
-
 
 def main():
 
-    html_files = get_html_files()
+    extractor = IMessageExtractor(INPUT_DIR)
 
-    if len(html_files) == 0:
-        print("No HTML files found in input folder.")
-        return
+    messages = extractor.extract_all()
 
-    for file in html_files:
-        print(f"\nLoading {file.name}...")
+    print(f"\nTotal messages extracted: {len(messages)}")
 
-        soup = load_html(file)
+    rows = []
 
-        print("   ✓ Loaded successfully")
+    for m in messages:
 
-    print("\nAll files loaded.")
+        rows.append(
+            {
+                "conversation": m.conversation,
+                "sender": m.sender,
+                "timestamp": m.timestamp,
+                "text": m.text,
+                "source_file": m.source_file,
+                "attachment": m.attachment,
+            }
+        )
+
+    df = pd.DataFrame(rows)
+
+    outfile = OUTPUT_DIR / "messages.csv"
+
+    df.to_csv(outfile, index=False)
+
+    print(f"\nSaved {outfile}")
 
 
 if __name__ == "__main__":
